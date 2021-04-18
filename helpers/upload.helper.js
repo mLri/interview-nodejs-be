@@ -34,7 +34,7 @@ module.exports.uploadFile = (files) => {
         const new_name = ranNameFileUpload(files)
 
         /* move file to public folder */
-        await files.mv('publick/' + new_name)
+        await files.mv('public/' + new_name)
         resolve({
           name: new_name,
           mimetype: files.mimetype

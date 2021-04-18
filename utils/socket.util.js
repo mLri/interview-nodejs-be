@@ -3,6 +3,7 @@ const ObjectId = require('mongoose').Types.ObjectId
 
 /* include model */
 const Chat = require('../models/chat.model')
+const ChatRoom = require('../models/chat_room.model')
 
 /* include helper */
 const { setMessage } = require('../helpers/socket.helper')
@@ -14,20 +15,41 @@ module.exports.init = (http) => {
     }
   })
 
-  io.on('connection', (socket) => {
+  let user = {
+    room_id: null
+  }
 
-    let user = {}
+  // let ROOM_ID = undefined
+
+  io.on('connection', (socket) => {
 
     socket.on('join_room', async room_id => {
       console.log('join room -> ', room_id)
-      if (!user.room_id) {
-        console.log('add room to user : ' + room_id)
-        user.room_id = room_id
-      } else {
-        console.log('leave room : ' + room_id)
-        socket.leave(user.room_id)
-      }
+      // ROOM_ID = room_id
       socket.join(room_id)
+    })
+
+    socket.on('leave_room', async room_id => {
+      console.log('leave room -> ', room_id)
+      socket.leave(room_id)
+    })
+
+    socket.on('join_noti', room_id => {
+      console.log('join noti -> ', room_id)
+      socket.join(room_id)
+    })
+
+    socket.on('leave_noti', room_id => {
+      console.log('leave noti -> ', room_id)
+      socket.leave(room_id)
+    })
+
+    socket.on('set_rooms', ({ join_chat_id_arr, join_room_id, new_room }) => {
+      for (let chat_room_id of join_chat_id_arr) {
+        console.log('chat_room_id -> ', chat_room_id)
+        io.to(`${chat_room_id}`).emit('set_rooms', { join_room_id, new_room })
+      }
+      // io.to(`${room_id}`).emit('set_rooms', { room_id, join_room_id, data })
     })
 
     socket.on('send_message', async (data) => {
@@ -38,6 +60,8 @@ module.exports.init = (http) => {
         return
       }
 
+      console.log('data -> ', data)
+
       const message = await setMessage(data)
 
       if (message) {
@@ -45,7 +69,107 @@ module.exports.init = (http) => {
         await Chat.create(message)
 
         io.to(`${data.room_id}`).emit('send_message', message)
+
+        let find_room = await ChatRoom.findOne({ _id: data.room_id })
+
+
+        console.log('find_room --- ', find_room)
+
+        let find_receive = find_room.users.find(val => {
+          console.log('val._id -> ', val._id)
+          console.log('data.user_id -> ', data.user_id)
+          return String(val._id) !== String(data.user_id)
+        })
+        console.log('find_receive -> ', find_receive)
+        if (find_receive) find_receive.noti_count += 1
+        // find_room.noti_fag = true
+        // find_room.noti_count = find_room.noti_count + 1
+        // console.log('find_room -> ', find_room)
+        await find_room.save()
+
+        let find_room_after_update = await ChatRoom.aggregate([
+          {
+            $match: {
+              _id: ObjectId(data.room_id)
+            }
+          },
+          {
+            $lookup: {
+              from: "users",
+              let: { "users_id_from_chat_room": "$users" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { "$in": ["$_id", "$$users_id_from_chat_room._id"] }
+                  }
+                },
+                {
+                  $project: {
+                    _id: 1,
+                    first_name: 1,
+                    notification: {
+                      $filter: {
+                        input: '$$users_id_from_chat_room',
+                        as: 'users',
+                        cond: { $eq: ['$$users._id', '$_id'] }
+                      }
+                    }
+                  }
+                }
+              ],
+              as: 'users'
+            },
+          }
+        ])
+
+        io.to(`${find_receive._id}`).emit('noti_alert', find_room_after_update[0])
       }
+    })
+
+    socket.on('clear_noti', async ({ room_id, user_id }) => {
+      let find_room = await ChatRoom.findOne({ _id: room_id })
+
+      /* clear noti */
+      let find_user = find_room.users.find(val => String(val._id) === String(user_id))
+      find_user.noti_count = 0
+      await find_room.save()
+
+      let find_room_after_update = await ChatRoom.aggregate([
+        {
+          $match: {
+            _id: ObjectId(room_id)
+          }
+        },
+        {
+          $lookup: {
+            from: "users",
+            let: { "users_id_from_chat_room": "$users" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { "$in": ["$_id", "$$users_id_from_chat_room._id"] }
+                }
+              },
+              {
+                $project: {
+                  _id: 1,
+                  first_name: 1,
+                  notification: {
+                    $filter: {
+                      input: '$$users_id_from_chat_room',
+                      as: 'users',
+                      cond: { $eq: ['$$users._id', '$_id'] }
+                    }
+                  }
+                }
+              }
+            ],
+            as: 'users'
+          },
+        }
+      ])
+
+      io.to(`${user_id}`).emit('noti_alert', find_room_after_update[0])
     })
 
     socket.on('read_message', async (data) => {

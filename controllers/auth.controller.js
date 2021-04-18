@@ -46,7 +46,7 @@ module.exports.signIn = async (req, res) => {
 
     /* check user */
     const user = await User.findOne({ username }).lean()
-    if (!user) throw statusError.bad_request_with_message('user not found!')
+    if (!user) throw statusError.bad_request_with_message('username or password was wrong!')
 
     /* check password */
     const compare_password = await bcrypt.compare(password, user.password)
@@ -68,7 +68,8 @@ module.exports.signIn = async (req, res) => {
     res.json({
       access_token,
       refresh_token,
-      username: user.username
+      username: user.username,
+      _id: user._id
     })
   } catch (error) {
     console.log(error)
@@ -105,6 +106,7 @@ module.exports.refreshToken = async (req, res) => {
       access_token,
       refresh_token,
       username: user.username,
+      _id: user._id
     })
   } catch (error) {
     handleError(error, res)

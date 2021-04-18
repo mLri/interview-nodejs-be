@@ -42,6 +42,11 @@ module.exports.getCustomer = async (req, res) => {
   }
 }
 
+module.exports.getCustomerById = async (req, res) => {
+  const { customer_id } = req.params
+  console.log('customer_id -> ', customer_id)
+}
+
 module.exports.updateCustomer = async (req, res) => {
   try {
     const _id = req.params.customer_id

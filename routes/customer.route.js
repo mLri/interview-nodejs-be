@@ -18,6 +18,13 @@ router.get('/',
   handleErrorValidate,
   customer_controller.getCustomer)
 
+router.get('/:customer_id',
+  checkAuth,
+  // validateSchema(customerSchema.getCustomer),
+  // validateSchemaType(customerSchema.getCustomer),
+  // handleErrorValidate,
+  customer_controller.getCustomerById)
+
 router.patch('/:customer_id',
   checkAuth,
   validateSchema(customerSchema.updateCustomer),

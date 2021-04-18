@@ -1,16 +1,22 @@
 const mongoose = require('mongoose')
 const Schema = mongoose.Schema
 
+const user = {
+  _id: {
+    type: Schema.Types.ObjectId,
+    required: true
+  },
+  noti_count: {
+    type: Number,
+    default: 0
+  }
+}
+
 const chatRoomSchema = new Schema({
   name: {
     type: String
   },
-  users: [
-    {
-      type: Schema.Types.ObjectId,
-      required: true
-    }
-  ],
+  users: [user],
   deleted_by: {
     type: Schema.Types.ObjectId
   }

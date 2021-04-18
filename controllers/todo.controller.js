@@ -7,15 +7,17 @@ const statusError = require('../helpers/status_error.helper')
 
 module.exports.listTodo = async (req, res) => {
   try {
+    const { principal: { _id } } = req.user
     const {
-      complete = false,
+      complete = '',
       limit = 5,
       sorted_by = 'created_at',
       sorted_order = 'asc',
       page = 1
     } = req.query
 
-    let query = { completed: complete }
+    let query = { user_id: _id }
+    if (complete) query.completed = complete
 
     /* calculate page */
     const skip_num = (page - 1) * limit
@@ -27,8 +29,12 @@ module.exports.listTodo = async (req, res) => {
     if (sorted_by === 'title') { sort = { 'title': order } }
 
     const todo_list = await Todo.find(query).sort(sort).limit(limit_num).skip(skip_num)
+    const total = await Todo.countDocuments({ user_id: _id })
 
-    res.json(todo_list)
+    res.json({
+      result: todo_list,
+      total
+    })
   } catch (error) {
     handleError(error, res)
   }
@@ -44,7 +50,12 @@ module.exports.createTodo = async (req, res) => {
       title
     })
 
-    res.json(create_todo)
+    const total = await Todo.countDocuments({ user_id: _id })
+
+    res.json({
+      result: create_todo,
+      total
+    })
   } catch (error) {
     handleError(error, res)
   }
@@ -71,10 +82,15 @@ module.exports.deleteTodo = async (req, res) => {
   try {
     const _id = req.params.todo_id
 
-    const delete_todo = await Todo.findByIdAndDelete(_id)
+    let delete_todo = await Todo.findByIdAndDelete(_id)
     if (!delete_todo) throw statusError.bad_request_with_message(`not found todo_id -> ${_id}`)
 
-    res.json(delete_todo)
+    const total = await Todo.countDocuments({})
+
+    res.json({
+      result: delete_todo,
+      total
+    })
   } catch (error) {
     handleError(error, res)
   }
